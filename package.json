@@ -1,6 +1,6 @@
 {
   "name": "noasi",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Disable ASI once and for all",
   "main": "index.js",
   "scripts": {

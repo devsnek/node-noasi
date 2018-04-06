@@ -7,13 +7,17 @@ const {
   decorated_private_symbol,
 } = process.binding('util');
 const wrapStart = require('module').wrapper[0];
-const VMScript = vm.Script;
+const {
+  Script: VMScript,
+  Module: VMModule,
+} = vm;
 
-vm.Script = function Script(code, options) {
+function checkCode(code, filename, sourceType) {
   let lastToken;
   let expectShittyASI = false;
   try {
     acorn.parse(code, {
+      sourceType,
       locations: true,
       onInsertedSemicolon() {
         expectShittyASI = true;
@@ -25,8 +29,6 @@ vm.Script = function Script(code, options) {
     });
   } catch (err) {
     if (expectShittyASI) {
-      const def = 'evalmachine.<anonymous>';
-      const filename = options ? options.filename ? options.filename : def : def;
       const { start, end: { line, column } } = lastToken.loc;
       const e = new SyntaxError('Unexpected end of input');
       let sliceStart = lastToken.start - start.column;
@@ -44,7 +46,13 @@ ${e.stack}`;
       throw e;
     }
   }
-  return new VMScript(code, options);
+}
+
+vm.Script = function Script(code, options) {
+  const s = new VMScript(code, options);
+  const def = 'evalmachine.<anonymous>';
+  checkCode(code, s.filename || options ? options.filename ? options.filename : def : def, 'script');
+  return s;
 };
 
 vm.runInThisContext = function runInThisContext(code, options) {
@@ -54,3 +62,11 @@ vm.runInThisContext = function runInThisContext(code, options) {
 vm.runInNewContext = function runInNewContext(code, sandbox, options) {
   return new vm.Script(code, options).runInNewContext(sandbox, options);
 };
+
+if (VMModule !== undefined) {
+  vm.Module = function Module(source, options) {
+    const m = new VMModule(source, options);
+    checkCode(source, m.url, 'module');
+    return m;
+  };
+}
