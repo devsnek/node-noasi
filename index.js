@@ -2,11 +2,13 @@
 
 const acorn = require('acorn');
 const vm = require('vm');
+const wrapStart = require('module').wrapper[0];
+
 const {
   setHiddenValue,
-  decorated_private_symbol,
+  decorated_private_symbol: decoratedPrivateSymbol,
 } = process.binding('util');
-const wrapStart = require('module').wrapper[0];
+
 const {
   Script: VMScript,
   Module: VMModule,
@@ -31,7 +33,7 @@ function checkCode(code, filename, sourceType) {
     if (expectShittyASI) {
       const { start, end: { line, column } } = lastToken.loc;
       const e = new SyntaxError('Unexpected end of input');
-      let sliceStart = lastToken.start - start.column;
+      const sliceStart = lastToken.start - start.column;
       let arrowLocation = column;
       code = code.slice(sliceStart, lastToken.end);
       if (code.startsWith(wrapStart)) {
@@ -42,7 +44,7 @@ function checkCode(code, filename, sourceType) {
 ${code}
 ${' '.repeat(arrowLocation)}^
 ${e.stack}`;
-      setHiddenValue(e, decorated_private_symbol, true);
+      setHiddenValue(e, decoratedPrivateSymbol, true);
       throw e;
     }
   }
@@ -51,9 +53,11 @@ ${e.stack}`;
 vm.Script = function Script(code, options) {
   const s = new VMScript(code, options);
   const def = 'evalmachine.<anonymous>';
-  checkCode(code, s.filename || options ? options.filename ? options.filename : def : def, 'script');
+  checkCode(code, s.filename || (options && options.filename ? options.filename : def), 'script');
   return s;
 };
+
+vm.createScript = (...args) => new vm.Script(...args);
 
 vm.runInThisContext = function runInThisContext(code, options) {
   return new vm.Script(code, options).runInThisContext(options);
